@@ -1,0 +1,10 @@
+jupyterlab
+ipykernel
+matplotlib
+numpy
+pandas
+scipy
+scikit-learn
+imbalanced-learn
+shap
+openpyxl

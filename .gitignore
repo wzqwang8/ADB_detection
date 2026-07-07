@@ -1,0 +1,39 @@
+.DS_Store
+.ipynb_checkpoints/
+__pycache__/
+*.py[cod]
+
+# Local environments
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Jupyter and generated notebook files
+*.nbconvert.ipynb
+
+# Large or sensitive data kept outside git
+data/raw/
+data/interim/
+data/external/
+Data example/
+*.csv.gz
+*.parquet
+
+# Generated report/build outputs
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.synctex.gz
+*.toc
+
+# Model artifacts
+models/
+*.joblib
+*.pkl
+*.pickle
