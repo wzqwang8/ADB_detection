@@ -8,3 +8,4 @@ scikit-learn
 imbalanced-learn
 shap
 openpyxl
+xgboost

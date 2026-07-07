@@ -27,7 +27,8 @@ Large raw datasets are intentionally excluded from git. Keep them locally under 
 3. Prepare all-trip modelling tables:
    `notebooks/all_trip_data/ML_time_series_prep.ipynb`
 4. Train and compare machine-learning models:
-   `notebooks/all_trip_data/ML_time_series.ipynb`, `ML_means.ipynb`, and `SMOTE.ipynb`
+   use `scripts/evaluate_models.py` for leakage-aware evaluation. The historical notebooks in
+   `notebooks/all_trip_data/` are retained as exploratory work.
 5. Generate charts and presentation figures:
    `notebooks/Plotting.ipynb`
 
@@ -52,3 +53,4 @@ jupyter lab
 - Notebook outputs have been stripped so code review stays readable.
 - The original folder contained about 1.7 GB of raw/intermediate data and reference papers; only lightweight processed CSVs and project deliverables are tracked here.
 - Some historical notebooks and duplicate checkpoint files were left out to keep the repository focused on the final workflow.
+- See `docs/modeling/leakage_audit.md` before citing model scores. The original notebooks likely over-estimate performance because of random row splits and SMOTE leakage.
