@@ -34,6 +34,7 @@ Data example/
 
 # Model artifacts
 models/
+reports/
 *.joblib
 *.pkl
 *.pickle

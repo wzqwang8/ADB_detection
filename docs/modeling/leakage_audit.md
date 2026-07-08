@@ -34,8 +34,13 @@ The new implementation:
 
 - drops timestamp/index columns before training;
 - infers driver groups from `start_end_data.csv` when possible;
+- aligns ADB and non-ADB files to shared feature columns, preventing missing columns in one class from becoming a label signal;
 - uses grouped train/test and grouped cross-validation when driver IDs are available;
 - keeps `SMOTE` inside the imbalanced-learn pipeline, so it is fitted only on each training fold;
 - compares logistic regression, random forest, gradient boosting, SVM, and real XGBoost when `xgboost` is installed, using balanced metrics.
+
+## Missing Non-ADB Means
+
+The backup folder does not contain the original `Final_non_adb_means.csv`. If the exact timestamped HRV feature table cannot be restored, `scripts/make_frequency_non_adb.py` can create a frequency-only fallback from `frequency_data/No_*.csv`. This is useful for sanity-checking the modelling pipeline, but it should be described as reconstructed data rather than the original final non-ADB table.
 
 If grouped scores are much lower than the old random-split scores, that is evidence that the old evaluation was measuring driver/session memorisation rather than generalisable ADB detection.

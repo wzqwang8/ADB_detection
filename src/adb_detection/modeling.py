@@ -61,6 +61,7 @@ def load_mean_feature_dataset(
     adb_csv: str | Path,
     non_adb_csv: str | Path,
     start_end_csv: str | Path | None = None,
+    align_common_columns: bool = True,
 ) -> pd.DataFrame:
     """Load ADB/non-ADB mean HRV tables and add labels/groups.
 
@@ -71,12 +72,31 @@ def load_mean_feature_dataset(
 
     adb = pd.read_csv(adb_csv).copy()
     non_adb = pd.read_csv(non_adb_csv).copy()
+
+    if start_end_csv is not None and Path(start_end_csv).exists():
+        adb = add_driver_groups(adb, pd.read_csv(start_end_csv))
+
+    if align_common_columns:
+        shared_columns = [
+            column
+            for column in adb.columns
+            if column in non_adb.columns and column not in {"adb", "driver"}
+        ]
+        if not shared_columns:
+            raise ValueError(
+                "The ADB and non-ADB files have no shared feature columns."
+            )
+        optional_metadata = [
+            column
+            for column in ("driver",)
+            if column in adb.columns and column in non_adb.columns
+        ]
+        adb = adb[shared_columns + optional_metadata]
+        non_adb = non_adb[shared_columns + optional_metadata]
+
     adb["adb"] = 1
     non_adb["adb"] = 0
     data = pd.concat([adb, non_adb], ignore_index=True)
-
-    if start_end_csv is not None and Path(start_end_csv).exists():
-        data = add_driver_groups(data, pd.read_csv(start_end_csv))
 
     return data
 
@@ -140,7 +160,12 @@ def prepare_features(
     y = y.loc[row_mask]
     if groups is not None:
         groups = groups.loc[row_mask]
-        if groups.isna().any() or groups.nunique() < 2:
+        if groups.notna().sum() and groups.nunique(dropna=True) >= 2:
+            group_mask = groups.notna()
+            features = features.loc[group_mask]
+            y = y.loc[group_mask]
+            groups = groups.loc[group_mask]
+        else:
             groups = None
 
     return features, y, groups
