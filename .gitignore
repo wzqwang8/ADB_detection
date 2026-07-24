@@ -18,6 +18,10 @@ data/raw/
 data/interim/
 data/external/
 Data example/
+Research papers/
+New research papers/
+Neil Diss.pdf
+CID01719755*.pdf
 *.csv.gz
 *.parquet
 
