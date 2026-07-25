@@ -16,7 +16,7 @@ with no real notion of a "5-minute window" to classify, just per-event summaries
 ## What the new pipeline builds
 
 Source data (see `data/README.md`):
-- `Data example/final_data/Final_<driver>.csv` — a continuous, ~1 Hz stream per
+- `Data example/heart_rate_data/hrv_merged/Final_<driver>.csv` — a continuous, ~1 Hz stream per
   driver of HRV features computed over a trailing 30-second sliding window
   (`mean_nni`, `sdnn`, `rmssd`, `lf`, `hf`, ... 23 columns), spanning the driver's
   entire multi-day recording.
@@ -79,7 +79,7 @@ Current run (default settings, 29 drivers with recorded events — drivers 10 an
 
 ```bash
 PYTHONPATH=src python scripts/build_five_minute_windows.py \
-  --final-data-dir "Data example/final_data" \
+  --final-data-dir "Data example/heart_rate_data/hrv_merged" \
   --events-xlsx "Data example/Provided DB_Final.xlsx" \
   --output data/processed/five_minute_windows.csv
 
@@ -105,7 +105,7 @@ stream.
 **Why:** `Final_<driver>.csv` is itself a 30s-window/1s-step computation, so even
 non-overlapping 5-minute *bins* over it are a statistic (mean/std/min/max) of an
 already-smoothed, highly autocorrelated series — not an independent measurement.
-Recomputing from `Data example/Raw_HR/No_<driver>(...)/measure/*/FilteredECG/{250,500}/*.txt`
+Recomputing from `Data example/heart_rate_data/raw_ecg/No_<driver>(...)/measure/*/FilteredECG/{250,500}/*.txt`
 (the filtered ECG signal, ~250Hz for most drivers, ~500Hz for two sessions of
 drivers 2 and 17) gives each window one genuine R-peak-detection-based HRV
 measurement instead of 92 aggregate-of-aggregate columns.
@@ -138,7 +138,7 @@ pip install biosppy hrv-analysis   # not installed by default; see requirements.
 
 PYTHONPATH=src python scripts/build_five_minute_windows_from_ecg.py \
   --windows-csv data/processed/five_minute_windows.csv \
-  --raw-hr-dir "Data example/Raw_HR" \
+  --raw-hr-dir "Data example/heart_rate_data/raw_ecg" \
   --output data/processed/five_minute_windows_ecg.csv
 
 PYTHONPATH=src python scripts/evaluate_models.py \

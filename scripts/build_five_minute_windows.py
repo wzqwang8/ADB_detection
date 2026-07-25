@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--final-data-dir",
-        default="Data example/final_data",
+        default="Data example/heart_rate_data/hrv_merged",
         help="Folder containing Final_<driver>.csv continuous HRV streams.",
     )
     parser.add_argument(

@@ -6,8 +6,8 @@ The historical modelling notebooks are useful as exploratory work, but their rep
 columns) still evaluated tiny, hand-built per-event *mean* tables. At the time
 this was written, the original `Final_non_adb_means.csv` was believed lost, so
 that path relied on an unrelated reconstructed fallback (see "Recovered Non-ADB
-Means" below — it has since turned up in `Data example/ALL_TRIP_DATA/` and is
-now tracked at `data/processed/Final_non_adb_means.csv`). Either way, sample
+Means" below — it has since turned up and is now tracked at
+`data/processed/Final_non_adb_means.csv`). Either way, sample
 counts from the per-event mean tables are tiny (~370 ADB rows, ~9.5k non-ADB
 rows, one row per hand-picked interval). `scripts/build_five_minute_windows.py`
 now builds a real, non-overlapping 5-minute-window dataset directly from the
@@ -56,9 +56,10 @@ The new implementation:
 ## Recovered Non-ADB Means
 
 The original `Final_non_adb_means.csv` was initially believed missing from the
-backup. It has since been located at `Data example/ALL_TRIP_DATA/Final_non_adb_means.csv`
-(9,561 rows, same 31-column schema as `Final_adb_means.csv`, including the
-merged `ODI-3%`/`CVHRI`/`CEI` sleep metrics) and is now tracked at
+backup. It has since been located (originally in `Data example/ALL_TRIP_DATA/`,
+now reorganized into `Data example/derived_outputs_legacy/`) — 9,561 rows, same
+31-column schema as `Final_adb_means.csv`, including the
+merged `ODI-3%`/`CVHRI`/`CEI` sleep metrics — and is now tracked at
 `data/processed/Final_non_adb_means.csv`, so the command above works with the
 real original data rather than a reconstruction.
 
