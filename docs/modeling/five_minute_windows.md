@@ -298,6 +298,26 @@ PYTHONPATH=src python scripts/evaluate_models_logo.py \
   --output reports/model_evaluation_logo_agg_normalized.csv
 ```
 
+**Result on the raw-ECG dataset is the opposite pattern**, not just a smaller
+version of the aggregate one:
+
+| Model | Baseline | Normalized | Δ |
+|---|---|---|---|
+| svm_rbf | 0.567 | 0.584 | +0.017 |
+| logistic_regression | 0.580 | 0.572 | −0.008 |
+| gradient_boosting | 0.571 | 0.562 | −0.009 |
+| xgboost | 0.580 | 0.561 | −0.019 |
+| random_forest | 0.588 | 0.567 | −0.021 |
+
+Only `svm_rbf` improves on both datasets; the other four models flip sign
+between aggregate and raw-ECG. This actually reinforces the "read small
+deltas as noise" conclusion rather than complicating it: with the sign of the
+effect itself unstable across feature sets, and every delta still far below
+the ~0.12-0.16 per-driver std, there's no case for treating per-driver
+normalization as a reliable lever on either dataset — keep it on the
+aggregate dataset since it's a net (if marginal) improvement there, but don't
+expect it to generalize as a blanket preprocessing step.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so
