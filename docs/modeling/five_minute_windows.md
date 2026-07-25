@@ -249,6 +249,55 @@ current performance ceiling**: real signal, but weak (~0.57 ROC-AUC, versus
 feature-engineering approach. Growing the driver cohort would do more for
 this project's results than further feature tuning.
 
+## Per-driver normalization (tried, marginal help)
+
+`modeling.normalize_within_driver` (used via `--per-driver-normalize` on both
+evaluation scripts) z-scores each feature against that driver's own mean/std
+before modelling, turning absolute HRV levels into "deviation from this
+driver's own baseline." This targets between-subject baseline variance
+specifically, rather than trying yet another model family — the LOGO table
+above already shows every model family converging to the same ~0.57 ROC-AUC,
+which pointed at the data/features rather than model choice as the
+bottleneck. It doesn't cross the group boundary `GroupKFold`/
+`LeaveOneGroupOut` rely on (a driver's own rows supply their own stats, so no
+other driver's data is used), though it does assume access to that driver's
+own aggregate feature statistics — realistic for a wearable with a
+calibration period, but slightly more information than a single incoming
+reading would give you.
+
+**Result on the aggregate dataset** (mean ROC-AUC across all 29 driver
+holdouts, baseline vs. per-driver normalized):
+
+| Model | Baseline | Normalized | Δ |
+|---|---|---|---|
+| svm_rbf | 0.585 | 0.618 | +0.033 |
+| random_forest | 0.577 | 0.593 | +0.016 |
+| xgboost | 0.584 | 0.591 | +0.007 |
+| gradient_boosting | 0.569 | 0.583 | +0.014 |
+| logistic_regression | 0.566 | 0.561 | −0.005 |
+
+4 of 5 models improve on both ROC-AUC and balanced accuracy (random_forest's
+balanced accuracy moves the most, +0.034), svm_rbf improves the most on
+ROC-AUC. logistic_regression is the outlier, getting slightly worse —
+plausibly because it already scales features globally (`StandardScaler` in
+`make_pipeline`), so per-driver normalization on top is a redundant second
+normalization rather than new information.
+
+**Read this the same way as the "Result instability" section above**: every
+delta here (0.01-0.03) is an order of magnitude smaller than the per-driver
+std (~0.12-0.15), so this is a real, cheap, worth-keeping improvement, not a
+result that overturns the ~0.55-0.6 ROC-AUC ceiling. It's consistent with
+that ceiling being a real-signal/small-cohort limit rather than a fixable
+modelling mistake — normalizing away between-driver baseline differences
+helps a little, but there's no remaining large effect it was masking.
+
+```bash
+PYTHONPATH=src python scripts/evaluate_models_logo.py \
+  --windows-csv data/processed/five_minute_windows.csv \
+  --per-driver-normalize \
+  --output reports/model_evaluation_logo_agg_normalized.csv
+```
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so

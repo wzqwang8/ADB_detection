@@ -9,6 +9,7 @@ from adb_detection.modeling import (
     leave_one_group_out_evaluation,
     load_five_minute_windows,
     load_mean_feature_dataset,
+    normalize_within_driver,
     prepare_features,
     select_best_hyperparameters,
 )
@@ -49,6 +50,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable SMOTE and rely on class weights only.",
     )
+    parser.add_argument(
+        "--per-driver-normalize",
+        action="store_true",
+        help="Z-score each feature against that driver's own mean/std before "
+        "modelling, to remove between-driver baseline differences.",
+    )
     args = parser.parse_args()
 
     if bool(args.windows_csv) == bool(args.adb_csv or args.non_adb_csv):
@@ -79,9 +86,13 @@ def main() -> None:
             "Leave-one-driver-out evaluation requires driver groups; none were found."
         )
 
+    if args.per_driver_normalize:
+        x = normalize_within_driver(x, groups)
+
     print(
         f"Rows: {len(x)} | Features: {x.shape[1]} | Drivers: {groups.nunique()} | "
         f"Positive rate: {y.mean():.3f}"
+        + (" | per-driver normalized" if args.per_driver_normalize else "")
     )
 
     print("Selecting hyperparameters via grouped CV over all data...")
