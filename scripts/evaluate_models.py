@@ -8,6 +8,7 @@ from adb_detection.modeling import (
     evaluate_models,
     load_five_minute_windows,
     load_mean_feature_dataset,
+    normalize_within_driver,
     prepare_features,
 )
 
@@ -42,6 +43,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable SMOTE and rely on class weights only.",
     )
+    parser.add_argument(
+        "--per-driver-normalize",
+        action="store_true",
+        help="Z-score each feature against that driver's own mean/std before "
+        "modelling, to remove between-driver baseline differences.",
+    )
     args = parser.parse_args()
 
     if bool(args.windows_csv) == bool(args.adb_csv or args.non_adb_csv):
@@ -65,6 +72,11 @@ def main() -> None:
             args.start_end_csv if args.start_end_csv else None,
         )
     x, y, groups = prepare_features(dataset)
+
+    if args.per_driver_normalize:
+        if groups is None:
+            raise SystemExit("--per-driver-normalize requires driver groups; none were found.")
+        x = normalize_within_driver(x, groups)
 
     if groups is not None:
         print(f"Using grouped evaluation across {groups.nunique()} drivers.")

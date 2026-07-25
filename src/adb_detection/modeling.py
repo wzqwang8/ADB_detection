@@ -198,6 +198,30 @@ def prepare_features(
     return features, y, groups
 
 
+def normalize_within_driver(features: pd.DataFrame, groups: pd.Series) -> pd.DataFrame:
+    """Z-score each feature against that driver's own mean/std.
+
+    Absolute HRV levels vary a lot between people; this reframes every
+    feature as "deviation from this driver's own baseline" instead, which is
+    the standard fix for between-subject baseline variance in wearable/HRV
+    modelling. It only ever uses a driver's own rows (never another driver's),
+    so it does not leak across the group boundary that ``GroupKFold``/
+    ``LeaveOneGroupOut`` rely on — a driver's rows are always entirely in one
+    fold, and this just changes their values, not which fold they land in.
+    Note it does assume access to that driver's own aggregate feature
+    statistics (e.g. a calibration period), which is realistic for a wearable
+    deployment but is slightly more information than a single incoming
+    reading would give you.
+
+    Drivers with zero variance in a column (e.g. a single-row group) would
+    divide by zero; those are set to 0 (no deviation signal) rather than NaN.
+    """
+
+    grouped = features.groupby(groups)
+    normalized = grouped.transform(lambda col: (col - col.mean()) / col.std(ddof=0))
+    return normalized.replace([np.inf, -np.inf], np.nan).fillna(0.0)
+
+
 def split_train_test(
     x: pd.DataFrame,
     y: pd.Series,
