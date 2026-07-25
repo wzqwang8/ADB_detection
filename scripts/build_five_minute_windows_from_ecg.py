@@ -35,7 +35,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--raw-hr-dir",
-        default="Data example/Raw_HR",
+        default="Data example/heart_rate_data/raw_ecg",
         help="Folder containing No_<driver>(...)/measure/*/FilteredECG/{250,500}/*.txt",
     )
     parser.add_argument(
