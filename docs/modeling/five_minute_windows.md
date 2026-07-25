@@ -214,30 +214,40 @@ PYTHONPATH=src python scripts/evaluate_models_logo.py \
   --output reports/model_evaluation_logo_ecg.csv
 ```
 
-**Result on the raw-ECG dataset, across all 29 driver holdouts** (mean ± std
-ROC-AUC / balanced accuracy):
+**Result across all 29 driver holdouts, both datasets** (mean ± std ROC-AUC):
 
-| Model | ROC-AUC | Balanced accuracy |
+| Model | Aggregate | Raw ECG |
 |---|---|---|
-| xgboost | 0.580 ± 0.155 | 0.579 ± 0.112 |
-| random_forest | 0.588 ± 0.148 | 0.563 ± 0.103 |
-| logistic_regression | 0.580 ± 0.143 | 0.544 ± 0.095 |
-| gradient_boosting | 0.571 ± 0.137 | 0.543 ± 0.100 |
-| svm_rbf | 0.567 ± 0.148 | 0.530 ± 0.094 |
+| xgboost | 0.567 ± 0.153 | 0.580 ± 0.155 |
+| random_forest | 0.577 ± 0.153 | 0.588 ± 0.148 |
+| logistic_regression | 0.565 ± 0.139 | 0.580 ± 0.143 |
+| gradient_boosting | 0.558 ± 0.151 | 0.571 ± 0.137 |
+| svm_rbf | 0.585 ± 0.155 | 0.567 ± 0.148 |
 
-**This supersedes the single-split "xgboost gets 0.685 ROC-AUC" headline
-above.** Under exhaustive leave-one-driver-out evaluation, xgboost's *mean*
-ROC-AUC is 0.580, not 0.685 — the earlier number was one favorable split, not a
-robust estimate. More importantly: individual driver folds range from ~0.18 to
-~0.88 ROC-AUC (see `reports/model_evaluation_logo_ecg.csv` for the per-driver
-breakdown), and **all five models land within about 0.02 of each other on
-mean ROC-AUC** — well inside one standard deviation. There is no genuinely
-best model here; the apparent differences between models (and between the
-aggregate/ECG/combined datasets above) documented earlier are mostly noise at
-this sample size, not real effects. Treat this table, not any single-split
-number, as the project's actual current performance ceiling: real signal, but
-weak and highly driver-dependent, consistent with a small (29-driver, ~350-event)
-dataset rather than a fundamental limitation of the approach.
+**This supersedes every single-split headline above, including the "xgboost
+gets 0.685 ROC-AUC" one.** Under exhaustive leave-one-driver-out evaluation:
+
+- Every model on both datasets converges to roughly the same **~0.56-0.59 mean
+  ROC-AUC**, with the per-model, per-dataset differences (≤0.02) an order of
+  magnitude smaller than the std (~0.14-0.16). There is no genuinely best model
+  and **no genuine improvement from raw-ECG recomputation over the aggregate
+  features** — the single-split result suggesting xgboost+raw-ECG was a clear
+  winner (0.685 vs 0.610) was mostly noise from a single favorable split, not a
+  robust effect. The "combined features hurt xgboost/gradient_boosting"
+  finding above should be read the same way: probably also within normal
+  single-split noise, not a proven overfitting effect (it wasn't re-checked
+  under LOGO).
+- Individual driver folds vary hugely (ROC-AUC from ~0.15 to ~0.87 — see
+  `reports/model_evaluation_logo_{agg,ecg}.csv` for the per-driver breakdown).
+  Some drivers' physiology predicts their own ADB risk well; others don't
+  generalize from the rest of the cohort at all.
+
+**Treat this table, not any single-split number, as the project's actual
+current performance ceiling**: real signal, but weak (~0.57 ROC-AUC, versus
+0.5 for a coin flip) and highly driver-dependent — consistent with a small
+(29-driver, ~350-event) dataset rather than a fundamental flaw in either
+feature-engineering approach. Growing the driver cohort would do more for
+this project's results than further feature tuning.
 
 ## Caveats
 
