@@ -49,6 +49,7 @@ DEFAULT_DROP_COLUMNS = {
     "window_end_unix",
     "n_samples",
     "event_count",
+    "n_beats",
 }
 
 

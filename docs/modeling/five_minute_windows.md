@@ -92,6 +92,65 @@ Tunable via CLI flags: `--window-minutes`, `--post-event-buffer-minutes`,
 `--min-coverage`, `--negative-ratio`, `--random-state`. `--no-sleep-summary`
 disables the `ODI-3%`/`CVHRI`/`CEI` merge.
 
+## Raw-ECG-recomputed variant
+
+`scripts/build_five_minute_windows_from_ecg.py` produces a second dataset,
+`data/processed/five_minute_windows_ecg.csv`, that keeps the exact same row set
+as `five_minute_windows.csv` (same `driver`/`window_start_unix`/`window_end_unix`/
+`adb` per window — same labels, same negative sampling, same leakage-avoidance
+properties described above) but computes each window's HRV features directly
+from the raw ECG signal instead of aggregating the precomputed 30-second-sliding
+stream.
+
+**Why:** `Final_<driver>.csv` is itself a 30s-window/1s-step computation, so even
+non-overlapping 5-minute *bins* over it are a statistic (mean/std/min/max) of an
+already-smoothed, highly autocorrelated series — not an independent measurement.
+Recomputing from `Data example/Raw_HR/No_<driver>(...)/measure/*/FilteredECG/{250,500}/*.txt`
+(the filtered ECG signal, ~250Hz for most drivers, ~500Hz for two sessions of
+drivers 2 and 17) gives each window one genuine R-peak-detection-based HRV
+measurement instead of 92 aggregate-of-aggregate columns.
+
+**Method** (matches `notebooks/HRV_data-multiple.ipynb`'s original approach, generalized
+from a 30s/1s-step sliding loop to one call per true 5-minute window):
+`biosppy.signals.ecg.ecg(signal, sampling_rate, show=False)` for R-peak detection,
+RR intervals from consecutive R-peak sample indices, `hrvanalysis.preprocessing.get_nn_intervals`
+(300-2000ms physiological bounds) to clean artifacts, then `hrvanalysis`'s
+`get_time_domain_features`/`get_frequency_domain_features`. `hrvanalysis`'s own
+output keys (`mean_nni`, `sdnn`, ..., `lf`, `hf`, `lfnu`, `hfnu`, `vlf`, ...) are
+exactly this project's existing HRV column names — no renaming needed. One
+deliberate deviation: the notebook passes `int(len(window)/30)` as
+`get_frequency_domain_features`'s `sampling_frequency` argument, which — because
+`len(window)` scales with window duration at a fixed sample rate — always
+evaluates to the ECG sample rate (~250) regardless of window size. That's not a
+sensible NN-interval resampling rate for Welch's method, so this script uses the
+library default (4 Hz) instead.
+
+A window is dropped (and counted in a per-driver drop-reason summary) if: no raw
+ECG files exist for that driver, no file overlaps the window's time span, ECG
+sample coverage is below `--min-coverage` (default 0.6, same semantics as the
+aggregate build), or too few beats are detected (scaled from the notebook's
+"drop if <15 beats/30s" rule, i.e. ~150 beats/5min). In practice this drops very
+little: 3,803 of 3,817 windows (99.6%) recomputed successfully across all 29
+drivers, all 14 drops for insufficient detected beats (no driver lost entirely).
+
+```bash
+pip install biosppy hrv-analysis   # not installed by default; see requirements.txt
+
+PYTHONPATH=src python scripts/build_five_minute_windows_from_ecg.py \
+  --windows-csv data/processed/five_minute_windows.csv \
+  --raw-hr-dir "Data example/Raw_HR" \
+  --output data/processed/five_minute_windows_ecg.csv
+
+PYTHONPATH=src python scripts/evaluate_models.py \
+  --windows-csv data/processed/five_minute_windows_ecg.csv \
+  --output reports/model_evaluation_5min_ecg.json
+```
+
+Compare `reports/model_evaluation_5min.json` (aggregate features) against
+`reports/model_evaluation_5min_ecg.json` (raw-ECG features) to see whether
+recomputing from source signal actually improves generalization over just
+aggregating the precomputed stream.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so

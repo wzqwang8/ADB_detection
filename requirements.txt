@@ -9,3 +9,6 @@ imbalanced-learn
 shap
 openpyxl
 xgboost
+biosppy
+hrv-analysis
+peakutils
