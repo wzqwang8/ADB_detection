@@ -2,6 +2,13 @@
 
 The historical modelling notebooks are useful as exploratory work, but their reported scores should not be treated as final model performance.
 
+**Update:** the fixes below (grouped splits, in-pipeline SMOTE, dropped timestamp
+columns) still evaluated tiny, hand-built per-event *mean* tables with negatives
+from an unrelated reconstructed file. `scripts/build_five_minute_windows.py` now
+builds a real, non-overlapping 5-minute-window dataset directly from the raw
+per-driver HRV streams and event log — see `docs/modeling/five_minute_windows.md`
+for the current recommended pipeline and why it doesn't reintroduce leakage.
+
 ## Problems Found
 
 1. `SMOTE` is applied before `train_test_split` in `notebooks/all_trip_data/ML_means.ipynb` and `ML_time_series.ipynb`.

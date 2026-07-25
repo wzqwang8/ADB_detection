@@ -6,6 +6,7 @@ from pathlib import Path
 
 from adb_detection.modeling import (
     evaluate_models,
+    load_five_minute_windows,
     load_mean_feature_dataset,
     prepare_features,
 )
@@ -15,14 +16,21 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Evaluate ADB classifiers with leakage-aware splits."
     )
-    parser.add_argument("--adb-csv", required=True, help="CSV containing ADB windows.")
     parser.add_argument(
-        "--non-adb-csv", required=True, help="CSV containing non-ADB windows."
+        "--windows-csv",
+        help=(
+            "Pre-built 5-minute-window table from "
+            "scripts/build_five_minute_windows.py. Mutually exclusive with "
+            "--adb-csv/--non-adb-csv."
+        ),
     )
+    parser.add_argument("--adb-csv", help="CSV containing ADB windows.")
+    parser.add_argument("--non-adb-csv", help="CSV containing non-ADB windows.")
     parser.add_argument(
         "--start-end-csv",
         default="data/processed/start_end_data.csv",
-        help="Optional driver interval metadata used for grouped evaluation.",
+        help="Optional driver interval metadata used for grouped evaluation "
+        "(only used with --adb-csv/--non-adb-csv).",
     )
     parser.add_argument(
         "--output",
@@ -34,16 +42,28 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable SMOTE and rely on class weights only.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+
+    if bool(args.windows_csv) == bool(args.adb_csv or args.non_adb_csv):
+        raise SystemExit(
+            "Pass exactly one of --windows-csv or --adb-csv/--non-adb-csv."
+        )
+    if bool(args.adb_csv) != bool(args.non_adb_csv):
+        raise SystemExit("--adb-csv and --non-adb-csv must be given together.")
+
+    return args
 
 
 def main() -> None:
     args = parse_args()
-    dataset = load_mean_feature_dataset(
-        args.adb_csv,
-        args.non_adb_csv,
-        args.start_end_csv if args.start_end_csv else None,
-    )
+    if args.windows_csv:
+        dataset = load_five_minute_windows(args.windows_csv)
+    else:
+        dataset = load_mean_feature_dataset(
+            args.adb_csv,
+            args.non_adb_csv,
+            args.start_end_csv if args.start_end_csv else None,
+        )
     x, y, groups = prepare_features(dataset)
 
     if groups is not None:

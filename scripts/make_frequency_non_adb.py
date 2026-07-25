@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from adb_detection.modeling import load_sleep_summary
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -40,16 +42,6 @@ def parse_args() -> argparse.Namespace:
 def driver_from_filename(path: Path) -> int | None:
     match = re.match(r"No_(\d+)", path.stem)
     return int(match.group(1)) if match else None
-
-
-def load_sleep_summary(summary_xlsx: Path) -> pd.DataFrame:
-    summary = pd.read_excel(summary_xlsx, sheet_name="Summary-final")
-    summary = summary[["Name", "ODI-3%", "CVHRI", "CEI"]].dropna(subset=["Name"])
-    summary["driver"] = summary["Name"].astype(int)
-    return (
-        summary.groupby("driver", as_index=False)[["ODI-3%", "CVHRI", "CEI"]]
-        .median(numeric_only=True)
-    )
 
 
 def main() -> None:

@@ -45,7 +45,29 @@ DEFAULT_DROP_COLUMNS = {
     "unixStart",
     "recordTime",
     "move_start_time",
+    "window_start_unix",
+    "window_end_unix",
+    "n_samples",
+    "event_count",
 }
+
+
+def load_sleep_summary(summary_xlsx: str | Path) -> pd.DataFrame:
+    """Load per-driver sleep-quality metrics from the ``Summary-final`` sheet."""
+
+    summary = pd.read_excel(summary_xlsx, sheet_name="Summary-final")
+    summary = summary[["Name", "ODI-3%", "CVHRI", "CEI"]].dropna(subset=["Name"])
+    summary["driver"] = summary["Name"].astype(int)
+    return (
+        summary.groupby("driver", as_index=False)[["ODI-3%", "CVHRI", "CEI"]]
+        .median(numeric_only=True)
+    )
+
+
+def load_five_minute_windows(csv_path: str | Path) -> pd.DataFrame:
+    """Load a windows table produced by ``scripts/build_five_minute_windows.py``."""
+
+    return pd.read_csv(csv_path)
 
 
 @dataclass(frozen=True)
