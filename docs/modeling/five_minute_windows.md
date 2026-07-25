@@ -1,18 +1,17 @@
 # 5-Minute-Window ADB Prediction
 
 This documents the windowed dataset built by `scripts/build_five_minute_windows.py`,
-which replaces the old per-event mean tables (`Final_adb_means.csv`, `mean_adb.csv`,
-and the reconstructed `final_non_adb_means.csv` fallback) as the input to
+which replaces the old per-event mean tables (`Final_adb_means.csv`,
+`Final_non_adb_means.csv`, `mean_adb.csv`) as the input to
 `scripts/evaluate_models.py`. See `docs/modeling/leakage_audit.md` for the earlier
 leakage findings this build resolves.
 
 ## Why the old tables were still a problem
 
-`notebooks/ADB_Intervals-Final.ipynb` computed one *mean* HRV vector per ADB event
-(mean over the 5 minutes before/after each event), giving only a few hundred rows
-total, and negatives came from a separately reconstructed frequency-only table that
-was not time-aligned to the same drivers or timeline. That's a small, mismatched
-sample with no real notion of a "5-minute window" to classify.
+`notebooks/ADB_Intervals-Final.ipynb` computed one *mean* HRV vector per hand-picked
+interval (the 5 minutes before/after each ADB event, or a matched baseline),
+giving only a few hundred ADB rows and ~9.5k non-ADB rows total — a small sample
+with no real notion of a "5-minute window" to classify, just per-event summaries.
 
 ## What the new pipeline builds
 
