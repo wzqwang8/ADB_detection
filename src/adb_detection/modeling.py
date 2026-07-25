@@ -27,6 +27,7 @@ from sklearn.model_selection import (
     GridSearchCV,
     GroupKFold,
     GroupShuffleSplit,
+    LeaveOneGroupOut,
     StratifiedKFold,
     train_test_split,
 )
@@ -403,3 +404,89 @@ def compute_metrics(
     if y_score is not None and y_true.nunique() == 2:
         metrics["roc_auc"] = roc_auc_score(y_true, y_score)
     return metrics
+
+
+def select_best_hyperparameters(
+    x: pd.DataFrame,
+    y: pd.Series,
+    groups: pd.Series,
+    use_smote: bool = True,
+) -> dict[str, dict]:
+    """Pick each candidate model's best hyperparameters via grouped CV over all data.
+
+    Used as the first phase of leave-one-group-out evaluation: tuning once on
+    the full dataset (rather than once per held-out driver) keeps the cost of
+    the exhaustive per-driver holdout loop to one cheap refit per fold instead
+    of a full grid search per fold.
+    """
+
+    n_splits = min(5, groups.nunique())
+    cv = GroupKFold(n_splits=n_splits)
+
+    best_params: dict[str, dict] = {}
+    for name, (pipeline, grid) in candidate_models(use_smote=use_smote).items():
+        search = GridSearchCV(
+            estimator=clone(pipeline),
+            param_grid=grid,
+            scoring="balanced_accuracy",
+            cv=cv,
+            n_jobs=-1,
+            refit=False,
+            error_score="raise",
+        )
+        search.fit(x, y, groups=groups)
+        best_params[name] = search.best_params_
+
+    return best_params
+
+
+def leave_one_group_out_evaluation(
+    x: pd.DataFrame,
+    y: pd.Series,
+    groups: pd.Series,
+    best_params: dict[str, dict],
+    use_smote: bool = True,
+) -> pd.DataFrame:
+    """Refit each model (fixed hyperparameters) once per held-out driver.
+
+    This trades a single train/test split's point estimate for a distribution
+    of holdout scores across every driver, since a single grouped split can be
+    unstable when there are only a few dozen groups (see
+    docs/modeling/five_minute_windows.md's "Result instability" section).
+    """
+
+    logo = LeaveOneGroupOut()
+    models = candidate_models(use_smote=use_smote)
+
+    records: list[dict] = []
+    for train_idx, test_idx in logo.split(x, y, groups):
+        held_out_driver = groups.iloc[test_idx].iloc[0]
+        x_train, x_test = x.iloc[train_idx], x.iloc[test_idx]
+        y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+        if y_train.nunique() < 2:
+            continue
+
+        for name, (pipeline, _) in models.items():
+            fitted = clone(pipeline)
+            fitted.set_params(**best_params[name])
+
+            record = {
+                "model": name,
+                "held_out_driver": held_out_driver,
+                "n_test": len(test_idx),
+                "n_positive_test": int(y_test.sum()),
+            }
+            try:
+                fitted.fit(x_train, y_train)
+                predictions = fitted.predict(x_test)
+                scores = _positive_class_scores(fitted, x_test)
+                metrics = compute_metrics(y_test, predictions, scores)
+                metrics.pop("classification_report", None)
+                record.update(metrics)
+            except Exception as exc:  # noqa: BLE001 - keep going on a single bad fold/model
+                record["error"] = str(exc)
+
+            records.append(record)
+
+    return pd.DataFrame.from_records(records)

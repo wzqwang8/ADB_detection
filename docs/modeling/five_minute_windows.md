@@ -197,6 +197,48 @@ repeated grouped resampling (many random `GroupShuffleSplit` holdouts, or
 leave-one-driver-out CV) to get a distribution rather than one number per
 model/dataset.
 
+## Leave-one-driver-out evaluation (the authoritative number)
+
+`scripts/evaluate_models_logo.py` implements the "more defensible next step"
+flagged above: it picks each model's hyperparameters once via grouped CV over
+the whole dataset (`modeling.select_best_hyperparameters`), then refits each
+model with those *fixed* hyperparameters once per held-out driver
+(`modeling.leave_one_group_out_evaluation` — exhaustive, since there are only
+29 drivers, so no arbitrary choice of "how many repeats"). This gives a real
+distribution of holdout scores instead of one split's point estimate, at a
+fraction of the cost of repeating the full grid search per fold.
+
+```bash
+PYTHONPATH=src python scripts/evaluate_models_logo.py \
+  --windows-csv data/processed/five_minute_windows_ecg.csv \
+  --output reports/model_evaluation_logo_ecg.csv
+```
+
+**Result on the raw-ECG dataset, across all 29 driver holdouts** (mean ± std
+ROC-AUC / balanced accuracy):
+
+| Model | ROC-AUC | Balanced accuracy |
+|---|---|---|
+| xgboost | 0.580 ± 0.155 | 0.579 ± 0.112 |
+| random_forest | 0.588 ± 0.148 | 0.563 ± 0.103 |
+| logistic_regression | 0.580 ± 0.143 | 0.544 ± 0.095 |
+| gradient_boosting | 0.571 ± 0.137 | 0.543 ± 0.100 |
+| svm_rbf | 0.567 ± 0.148 | 0.530 ± 0.094 |
+
+**This supersedes the single-split "xgboost gets 0.685 ROC-AUC" headline
+above.** Under exhaustive leave-one-driver-out evaluation, xgboost's *mean*
+ROC-AUC is 0.580, not 0.685 — the earlier number was one favorable split, not a
+robust estimate. More importantly: individual driver folds range from ~0.18 to
+~0.88 ROC-AUC (see `reports/model_evaluation_logo_ecg.csv` for the per-driver
+breakdown), and **all five models land within about 0.02 of each other on
+mean ROC-AUC** — well inside one standard deviation. There is no genuinely
+best model here; the apparent differences between models (and between the
+aggregate/ECG/combined datasets above) documented earlier are mostly noise at
+this sample size, not real effects. Treat this table, not any single-split
+number, as the project's actual current performance ceiling: real signal, but
+weak and highly driver-dependent, consistent with a small (29-driver, ~350-event)
+dataset rather than a fundamental limitation of the approach.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so
