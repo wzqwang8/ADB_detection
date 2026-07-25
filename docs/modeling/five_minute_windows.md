@@ -151,6 +151,26 @@ Compare `reports/model_evaluation_5min.json` (aggregate features) against
 recomputing from source signal actually improves generalization over just
 aggregating the precomputed stream.
 
+**Result:** mixed but net positive. `gradient_boosting` and `xgboost` improve
+meaningfully (xgboost ROC-AUC 0.610 → 0.685, the best result across every
+dataset/model tried), while `random_forest` and `svm_rbf` do slightly worse —
+plausibly because real R-peak detection on ambulatory ECG introduces some
+motion-artifact noise the pre-cleaned aggregate stream didn't have, which hurts
+models more sensitive to noisy individual features than boosted trees are.
+
+## Combined variant (tried, not adopted)
+
+`scripts/combine_window_features.py` merges the aggregate and raw-ECG feature
+sets for the same windows (driver/window bounds) into one 118-feature table,
+`data/processed/five_minute_windows_combined.csv`. The hypothesis was that
+aggregate stats (std/min/max, capturing within-window variability) and clean
+ECG-derived central values might be complementary. In practice it made the two
+best models *worse* — xgboost's ROC-AUC collapsed from 0.685 to 0.495 (chance),
+gradient_boosting from 0.671 to 0.529 — while logistic regression/random forest
+ticked up slightly. Doubling the feature count without adding rows (still
+~3,800) looks like it pushed the boosted-tree models into overfitting. Kept in
+the repo as a documented negative result, not as the recommended dataset.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so
