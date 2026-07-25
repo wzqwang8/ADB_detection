@@ -171,6 +171,32 @@ ticked up slightly. Doubling the feature count without adding rows (still
 ~3,800) looks like it pushed the boosted-tree models into overfitting. Kept in
 the repo as a documented negative result, not as the recommended dataset.
 
+## Result instability at this sample size
+
+Raising `--min-coverage` from 0.6 to 0.9 for the raw-ECG build dropped only 3 of
+3,803 windows (coverage was already high almost everywhere; the bottleneck
+wasn't incomplete windows). Despite the dataset being ~99.9% identical, holdout
+scores moved more than that tiny data change should justify: xgboost ROC-AUC
+0.685 → 0.623, random_forest 0.587 → 0.514 (now below chance), gradient_boosting
+0.671 → 0.609, while logistic_regression/svm barely moved. The likely
+explanation is that `GroupKFold`'s fold boundaries shift slightly when a driver
+loses a handful of rows, which changes which hyperparameters `GridSearchCV`
+selects, which then changes the fitted model evaluated on the (unchanged) test
+drivers — i.e. this is small-sample instability in model selection, not a real
+effect of the coverage threshold.
+
+**Takeaway:** with only 29 drivers and ~350 positive windows, a single
+train/test split's point estimate (e.g. "xgboost gets 0.685 ROC-AUC") should be
+read as "somewhere in the 0.5-0.7 range for this model," not as a precise
+number — the variance between near-identical runs is comparable to the
+differences between models or between feature sets. Comparing many single-split
+results (as this document does) is useful for spotting large, consistent
+effects (e.g. random-split vs. grouped-split scores differing by leakage), but
+not for ranking small differences. A more defensible next step would be
+repeated grouped resampling (many random `GroupShuffleSplit` holdouts, or
+leave-one-driver-out CV) to get a distribution rather than one number per
+model/dataset.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so
