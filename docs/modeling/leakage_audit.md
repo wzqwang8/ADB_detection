@@ -73,3 +73,30 @@ for why the windowed dataset is the more defensible option for anything beyond
 a quick comparison.
 
 If grouped scores are much lower than the old random-split scores, that is evidence that the old evaluation was measuring driver/session memorisation rather than generalisable ADB detection.
+
+## Driver-Grouping Bug Fixed
+
+Testing the recovered `Final_non_adb_means.csv` end-to-end (the "Fix Implemented"
+path above had never actually been exercised with real non-ADB data, since that
+file was missing until now) surfaced two bugs in
+`load_mean_feature_dataset`/`add_driver_groups` that silently defeated the
+grouped-split protection described above, falling back to plain stratified
+splitting with no warning beyond "No usable driver groups found":
+
+1. `add_driver_groups` was only called on the ADB frame, before concatenation.
+   `align_common_columns` then only kept the `driver` column if it existed on
+   *both* frames — since the non-ADB frame never had it, the column (and all
+   of the ADB rows' correctly-inferred driver ids) was silently dropped.
+2. The interval-to-unix-seconds conversion used `.astype("int64") // 10**9`,
+   which assumes nanosecond-resolution datetimes. Depending on the pandas
+   version, `pd.to_datetime` on these string timestamps can resolve to
+   microsecond (or other) precision instead, making every computed interval
+   boundary wrong by orders of magnitude and matching zero rows to any driver.
+
+Both are fixed in `src/adb_detection/modeling.py`: driver inference now runs
+once on the concatenated table (so both classes get a `driver` value), using
+a resolution-agnostic `(timestamp - epoch) // pd.Timedelta("1s")` conversion
+(the same approach `scripts/build_five_minute_windows.py` already used for
+event timestamps). Re-running the command above now reports "Using grouped
+evaluation across N drivers" and matches ~9,700 of 9,919 rows to 22 drivers,
+instead of falling back to stratified splitting.

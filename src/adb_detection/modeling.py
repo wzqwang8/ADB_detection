@@ -95,9 +95,6 @@ def load_mean_feature_dataset(
     adb = pd.read_csv(adb_csv).copy()
     non_adb = pd.read_csv(non_adb_csv).copy()
 
-    if start_end_csv is not None and Path(start_end_csv).exists():
-        adb = add_driver_groups(adb, pd.read_csv(start_end_csv))
-
     if align_common_columns:
         shared_columns = [
             column
@@ -108,17 +105,20 @@ def load_mean_feature_dataset(
             raise ValueError(
                 "The ADB and non-ADB files have no shared feature columns."
             )
-        optional_metadata = [
-            column
-            for column in ("driver",)
-            if column in adb.columns and column in non_adb.columns
-        ]
-        adb = adb[shared_columns + optional_metadata]
-        non_adb = non_adb[shared_columns + optional_metadata]
+        adb = adb[shared_columns]
+        non_adb = non_adb[shared_columns]
 
     adb["adb"] = 1
     non_adb["adb"] = 0
     data = pd.concat([adb, non_adb], ignore_index=True)
+
+    if start_end_csv is not None and Path(start_end_csv).exists():
+        # Inferred once on the combined table so both classes' timestamps are
+        # matched against driver intervals (matching only the ADB rows here
+        # would leave non-ADB rows without a group, and align_common_columns
+        # would then silently drop the whole 'driver' column since it
+        # wouldn't exist on both classes).
+        data = add_driver_groups(data, pd.read_csv(start_end_csv))
 
     return data
 
@@ -136,12 +136,15 @@ def add_driver_groups(data: pd.DataFrame, intervals: pd.DataFrame) -> pd.DataFra
                 intervals[column], dayfirst=True, errors="coerce"
             )
 
+    epoch = pd.Timestamp("1970-01-01")
+    one_second = pd.Timedelta("1s")
+
     if {"driver", "ecg_start", "ecg_end"}.issubset(intervals.columns):
-        unix_start = intervals["ecg_start"].astype("int64") // 10**9
-        unix_end = intervals["ecg_end"].astype("int64") // 10**9
+        unix_start = (intervals["ecg_start"] - epoch) // one_second
+        unix_end = (intervals["ecg_end"] - epoch) // one_second
     elif {"driver", "trip_start", "trip_end"}.issubset(intervals.columns):
-        unix_start = intervals["trip_start"].astype("int64") // 10**9
-        unix_end = intervals["trip_end"].astype("int64") // 10**9
+        unix_start = (intervals["trip_start"] - epoch) // one_second
+        unix_end = (intervals["trip_end"] - epoch) // one_second
     else:
         return data
 
