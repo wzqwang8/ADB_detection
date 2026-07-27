@@ -11,6 +11,7 @@ from imblearn.pipeline import Pipeline
 from sklearn.base import clone
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
+from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
@@ -250,7 +251,12 @@ def split_train_test(
     return x_train, x_test, y_train, y_test, None, None
 
 
-def make_pipeline(estimator, use_smote: bool = True, scale: bool = False) -> Pipeline:
+def make_pipeline(
+    estimator,
+    use_smote: bool = True,
+    scale: bool = False,
+    use_feature_selection: bool = False,
+) -> Pipeline:
     numeric_steps = [("imputer", SimpleImputer(strategy="median"))]
     if scale:
         numeric_steps.append(("scaler", StandardScaler()))
@@ -261,6 +267,11 @@ def make_pipeline(estimator, use_smote: bool = True, scale: bool = False) -> Pip
     )
 
     steps = [("preprocess", preprocessor)]
+    if use_feature_selection:
+        # Univariate F-test selection, fit only on each training fold (like
+        # SMOTE below) so the held-out fold never influences which features
+        # are kept.
+        steps.append(("select", SelectKBest(score_func=f_classif)))
     if use_smote:
         steps.append(("smote", SMOTE(random_state=RANDOM_STATE)))
     steps.append(("model", estimator))
@@ -271,7 +282,9 @@ def selector_all_columns(x: pd.DataFrame) -> list[str]:
     return list(x.columns)
 
 
-def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]:
+def candidate_models(
+    use_smote: bool = True, use_feature_selection: bool = False
+) -> dict[str, tuple[Pipeline, dict]]:
     """Conservative model grids suitable for a small biomedical dataset."""
 
     models = {
@@ -280,6 +293,7 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
                 LogisticRegression(max_iter=2000, class_weight="balanced"),
                 use_smote=use_smote,
                 scale=True,
+                use_feature_selection=use_feature_selection,
             ),
             {
                 "model__C": [0.1, 1.0, 10.0],
@@ -295,6 +309,7 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
                     n_jobs=-1,
                 ),
                 use_smote=use_smote,
+                use_feature_selection=use_feature_selection,
             ),
             {
                 "model__n_estimators": [200, 500],
@@ -306,6 +321,7 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
             make_pipeline(
                 GradientBoostingClassifier(random_state=RANDOM_STATE),
                 use_smote=use_smote,
+                use_feature_selection=use_feature_selection,
             ),
             {
                 "model__n_estimators": [50, 100, 200],
@@ -319,6 +335,7 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
                 SVC(class_weight="balanced", probability=True, random_state=RANDOM_STATE),
                 use_smote=use_smote,
                 scale=True,
+                use_feature_selection=use_feature_selection,
             ),
             {
                 "model__C": [0.1, 1.0, 10.0],
@@ -341,6 +358,7 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
                     n_jobs=-1,
                 ),
                 use_smote=use_smote,
+                use_feature_selection=use_feature_selection,
             ),
             {
                 "model__n_estimators": [50, 100, 200],
@@ -352,6 +370,13 @@ def candidate_models(use_smote: bool = True) -> dict[str, tuple[Pipeline, dict]]
             },
         )
 
+    if use_feature_selection:
+        # SelectKBest raises if k exceeds the available feature count; "all"
+        # (no selection) is included as a control alongside actual reduction.
+        selection_grid = {"select__k": [10, 20, 30, 50, "all"]}
+        for name, (pipeline, grid) in models.items():
+            models[name] = (pipeline, {**grid, **selection_grid})
+
     return models
 
 
@@ -360,6 +385,7 @@ def evaluate_models(
     y: pd.Series,
     groups: pd.Series | None = None,
     use_smote: bool = True,
+    use_feature_selection: bool = False,
 ) -> list[EvaluationResult]:
     x_train, x_test, y_train, y_test, train_groups, _ = split_train_test(x, y, groups)
 
@@ -376,7 +402,9 @@ def evaluate_models(
         cv_groups = None
 
     results: list[EvaluationResult] = []
-    for name, (pipeline, grid) in candidate_models(use_smote=use_smote).items():
+    for name, (pipeline, grid) in candidate_models(
+        use_smote=use_smote, use_feature_selection=use_feature_selection
+    ).items():
         search = GridSearchCV(
             estimator=clone(pipeline),
             param_grid=grid,
@@ -435,6 +463,7 @@ def select_best_hyperparameters(
     y: pd.Series,
     groups: pd.Series,
     use_smote: bool = True,
+    use_feature_selection: bool = False,
 ) -> dict[str, dict]:
     """Pick each candidate model's best hyperparameters via grouped CV over all data.
 
@@ -448,7 +477,9 @@ def select_best_hyperparameters(
     cv = GroupKFold(n_splits=n_splits)
 
     best_params: dict[str, dict] = {}
-    for name, (pipeline, grid) in candidate_models(use_smote=use_smote).items():
+    for name, (pipeline, grid) in candidate_models(
+        use_smote=use_smote, use_feature_selection=use_feature_selection
+    ).items():
         search = GridSearchCV(
             estimator=clone(pipeline),
             param_grid=grid,
@@ -470,6 +501,7 @@ def leave_one_group_out_evaluation(
     groups: pd.Series,
     best_params: dict[str, dict],
     use_smote: bool = True,
+    use_feature_selection: bool = False,
 ) -> pd.DataFrame:
     """Refit each model (fixed hyperparameters) once per held-out driver.
 
@@ -480,7 +512,7 @@ def leave_one_group_out_evaluation(
     """
 
     logo = LeaveOneGroupOut()
-    models = candidate_models(use_smote=use_smote)
+    models = candidate_models(use_smote=use_smote, use_feature_selection=use_feature_selection)
 
     records: list[dict] = []
     for train_idx, test_idx in logo.split(x, y, groups):

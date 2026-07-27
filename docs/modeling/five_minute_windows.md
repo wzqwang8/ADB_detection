@@ -318,6 +318,48 @@ normalization as a reliable lever on either dataset — keep it on the
 aggregate dataset since it's a net (if marginal) improvement there, but don't
 expect it to generalize as a blanket preprocessing step.
 
+## Feature selection (tried, no effect)
+
+`--feature-selection` on both evaluation scripts adds univariate ANOVA
+F-test selection (`sklearn.feature_selection.SelectKBest`) as a pipeline
+step, tuning `k` (10/20/30/50/all) as a grid-search hyperparameter alongside
+each model's existing grid. Like normalization, it's fit only on each
+training fold, so it can't leak test-fold information into which features
+are kept.
+
+**Result on the aggregate dataset**: essentially no change.
+
+| Model | Baseline ROC-AUC | Feature-selection ROC-AUC | Δ | Selected k |
+|---|---|---|---|---|
+| xgboost | 0.584 | 0.584 | −0.001 | 20 |
+| random_forest | 0.577 | 0.580 | +0.003 | 20 |
+| logistic_regression | 0.566 | 0.571 | +0.005 | 50 |
+| gradient_boosting | 0.569 | 0.569 | 0.000 | all |
+| svm_rbf | 0.585 | 0.585 | 0.000 | all |
+
+For `gradient_boosting` and `svm_rbf`, grid search picked `k='all'` — i.e. it
+considered reducing from 95 features down to as few as 10 and concluded no
+reduction was best. The three models that did pick a smaller `k` still moved
+by under 0.005 ROC-AUC, the same noise-level magnitude as every other small
+change tried in this document.
+
+**Combined with the per-driver normalization result above, this rules out
+two of the more obvious "fixable" explanations** for the ~0.55-0.6 ROC-AUC
+ceiling: it isn't feature redundancy/overfitting on 95 correlated columns
+(feature selection would have helped), and it isn't between-driver baseline
+drift (normalization would have helped more consistently than it did). That
+leaves the small-cohort, weak-signal explanation as the best-supported one —
+not a modelling mistake to fix, but a data-scale limit. Growing the driver
+cohort remains the one lever in this document that would plausibly move the
+result.
+
+```bash
+PYTHONPATH=src python scripts/evaluate_models_logo.py \
+  --windows-csv data/processed/five_minute_windows.csv \
+  --feature-selection \
+  --output reports/model_evaluation_logo_agg_featselect.csv
+```
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so

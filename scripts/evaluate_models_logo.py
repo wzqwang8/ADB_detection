@@ -56,6 +56,12 @@ def parse_args() -> argparse.Namespace:
         help="Z-score each feature against that driver's own mean/std before "
         "modelling, to remove between-driver baseline differences.",
     )
+    parser.add_argument(
+        "--feature-selection",
+        action="store_true",
+        help="Add univariate (ANOVA F-test) SelectKBest to each pipeline, "
+        "tuning k (10/20/30/50/all) as a grid-search hyperparameter.",
+    )
     args = parser.parse_args()
 
     if bool(args.windows_csv) == bool(args.adb_csv or args.non_adb_csv):
@@ -96,13 +102,24 @@ def main() -> None:
     )
 
     print("Selecting hyperparameters via grouped CV over all data...")
-    best_params = select_best_hyperparameters(x, y, groups, use_smote=not args.no_smote)
+    best_params = select_best_hyperparameters(
+        x,
+        y,
+        groups,
+        use_smote=not args.no_smote,
+        use_feature_selection=args.feature_selection,
+    )
     for name, params in best_params.items():
         print(f"  {name}: {params}")
 
     print(f"Running leave-one-driver-out evaluation across {groups.nunique()} drivers...")
     per_fold = leave_one_group_out_evaluation(
-        x, y, groups, best_params, use_smote=not args.no_smote
+        x,
+        y,
+        groups,
+        best_params,
+        use_smote=not args.no_smote,
+        use_feature_selection=args.feature_selection,
     )
 
     output = Path(args.output)

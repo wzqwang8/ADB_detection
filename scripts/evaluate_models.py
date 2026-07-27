@@ -49,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         help="Z-score each feature against that driver's own mean/std before "
         "modelling, to remove between-driver baseline differences.",
     )
+    parser.add_argument(
+        "--feature-selection",
+        action="store_true",
+        help="Add univariate (ANOVA F-test) SelectKBest to each pipeline, "
+        "tuning k (10/20/30/50/all) as a grid-search hyperparameter.",
+    )
     args = parser.parse_args()
 
     if bool(args.windows_csv) == bool(args.adb_csv or args.non_adb_csv):
@@ -86,7 +92,13 @@ def main() -> None:
     print(f"Rows: {len(x)} | Features: {x.shape[1]} | Positive rate: {y.mean():.3f}")
     print("Dropped timestamp/index columns and kept only numeric HRV features.")
 
-    results = evaluate_models(x, y, groups=groups, use_smote=not args.no_smote)
+    results = evaluate_models(
+        x,
+        y,
+        groups=groups,
+        use_smote=not args.no_smote,
+        use_feature_selection=args.feature_selection,
+    )
     serialisable = [
         {
             "model": r.model_name,
