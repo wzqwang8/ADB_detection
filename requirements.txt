@@ -12,3 +12,4 @@ xgboost
 biosppy
 hrv-analysis
 peakutils
+torch

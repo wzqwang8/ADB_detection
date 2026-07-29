@@ -30,8 +30,13 @@ Large raw datasets are intentionally excluded from git. Keep them locally under 
    This replaces the old per-event mean tables for modelling purposes.
 4. Train and compare machine-learning models:
    `scripts/evaluate_models.py --windows-csv data/processed/five_minute_windows.csv`
-   for leakage-aware, grouped-by-driver evaluation. The historical notebooks in
-   `notebooks/all_trip_data/` are retained as exploratory work.
+   for leakage-aware, grouped-by-driver evaluation, or
+   `scripts/evaluate_models_logo.py` for the more robust leave-one-driver-out
+   version (see `docs/modeling/five_minute_windows.md`). The historical
+   notebooks in `notebooks/all_trip_data/` are retained as exploratory work.
+   `scripts/evaluate_sequence_model.py` tries a small GRU sequence model
+   instead of treating each window as an independent row (also documented
+   there).
 5. Generate charts and presentation figures:
    `notebooks/Plotting.ipynb`
 

@@ -360,6 +360,67 @@ PYTHONPATH=src python scripts/evaluate_models_logo.py \
   --output reports/model_evaluation_logo_agg_featselect.csv
 ```
 
+## Sequence model (tried, no effect)
+
+Every model above treats each 5-minute window as an independent row, using
+only that window's own aggregate stats. `scripts/evaluate_sequence_model.py`
+tries giving the model real historical context instead: for each window, it
+looks back at that driver's `--lookback` (default 5) most recently monitored
+windows — chronological order, however irregular the actual time gaps are,
+since the negative grid is subsampled — and feeds that short sequence (each
+step: that window's existing aggregate features, plus a `delta_t` seconds-
+since-previous-step feature so the model can tell a 5-minute gap from a
+2-hour one) into a small GRU (`adb_detection.sequence_modeling`), trained
+with a class-weighted loss instead of SMOTE (which doesn't naturally extend
+to sequences). Same leave-one-driver-out evaluation as everything else.
+
+This needed no raw ECG/HRV-stream access — it only reorders and regroups the
+already-built `five_minute_windows*.csv` tables (a genuine, if coarse, time
+series: real prior monitoring windows for that driver, not synthetic sub-bins).
+A finer-grained sequence (actual per-second physiology within one window)
+would need the raw per-driver HRV/ECG streams; those are not available on
+this machine — see the "why not raw-ECG sequences" caveat below.
+
+**Result: no improvement, on either dataset.**
+
+| Dataset | Sequence lookback (5) ROC-AUC | Existing models' ROC-AUC range |
+|---|---|---|
+| Aggregate | 0.576 ± 0.178 | 0.566 – 0.585 |
+| Raw-ECG-recomputed | 0.575 ± 0.190 | 0.561 – 0.588 |
+
+The GRU lands squarely inside the existing models' range on both datasets,
+with the largest per-fold variance of anything tried in this document
+(std ≈ 0.18-0.19, versus ~0.12-0.16 for the tree/kernel models) — consistent
+with a small neural network being harder to fit reliably on this few
+sequences per fold, not with it finding extra signal the flat models missed.
+
+**This adds a third ruled-out explanation to the two from feature selection
+and normalization above**: it isn't that the flat per-window framing was
+throwing away useful historical trend information either (a sequence-aware
+model with real prior-window context would have shown it). Three different,
+reasonable "maybe this is fixable" hypotheses — feature redundancy, between-
+driver baseline drift, and missing temporal context — have now each been
+tested and found not to move the ~0.55-0.6 ROC-AUC ceiling. That's
+increasingly strong evidence the ceiling is a small-cohort/weak-signal data
+limit, not a modelling gap.
+
+```bash
+PYTHONPATH=src python scripts/evaluate_sequence_model.py \
+  --windows-csv data/processed/five_minute_windows.csv \
+  --output reports/model_evaluation_logo_sequence_agg.csv
+```
+
+**Why not raw-ECG-derived sequences:** the natural next step would be a
+sequence of sub-bins *within* each window (e.g. ten 30-second steps
+recomputed from raw ECG, rather than one window per step), which would need
+the raw per-driver `Data example/Raw_HR` / `final_data` streams this pipeline
+otherwise uses. On this machine those are only partially present (the
+directory structure exists but most raw ECG `.txt` files are empty/missing —
+under 200MB total across all drivers, versus the multiple GB a full
+multi-day 250Hz recording would need), so that variant isn't attempted here.
+It would need the complete raw data (e.g. from whichever machine originally
+built `five_minute_windows_ecg.csv`) to do properly.
+
 ## Caveats
 
 - Positive counts per driver are small (as few as 3 events for some drivers), so
